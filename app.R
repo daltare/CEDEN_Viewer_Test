@@ -9,6 +9,7 @@
     library(dplyr)
     library(urltools)
     library(tidyverse)
+    library(shinycssloaders)
 
 # Load the query function
     source('functions.R')
@@ -39,7 +40,7 @@ ui <- fluidPage(
       
       # Show the map
       mainPanel(
-         leafletOutput('map')
+         withSpinner(leafletOutput('map', height = 700))
       )
    )
 )
@@ -48,8 +49,9 @@ ui <- fluidPage(
 server <- function(input, output) {
 
     observeEvent(input$refresh, {
-        filter_string <- paste0('"filter":[{"county":"', input$county,'","parameter":"', input$parameter,'","sampleDateMin":"1/1/', input$min_year, '","sampleDateMax":"12/31/', input$max_year, '"}]')
 
+        filter_string <- paste0('"filter":[{"county":"', input$county,'","parameter":"', input$parameter,'","sampleDateMin":"1/1/', input$min_year, '","sampleDateMax":"12/31/', input$max_year, '"}]')
+        
         # check the connection to determine if it's coming from the CalEPA server or not - if not, remove the port number
             if (.Platform$OS.type == "windows") {
                 ipmessage <- system("ipconfig", intern = TRUE)
@@ -64,24 +66,33 @@ server <- function(input, output) {
             else {
                 base_URI = 'https://testcedenwebservices.waterboards.ca.gov'
             }
-        
-        API_data_WQresults <- ceden_query(service = 'cedenwaterqualityresultslist', query_parameters = filter_string, userName = 'testInternal', password = 'p', base_URI = base_URI)
-
-        output$map <- renderLeaflet({
-            leaflet(API_data_WQresults) %>%
-                addTiles() %>%
-                addCircleMarkers(
-                    radius = 3, opacity = 0.5,
-                    popup = ~paste('<b>', 'Analyte: ', '</b>', analyte,"<br/>",
-                                   '<b>', 'Station: ', '</b>', stationName,"<br/>",
-                                   '<b>', 'Sampling Agency: ', '</b>', sampleAgency,"<br/>",
-                                   '<b>', 'Lab: ', '</b>', labAgency,"<br/>",
-                                   '<b>', 'Sample Date: ', '</b>', substr(sampleDate,1,10),"<br/>",
-                                   '<b>', 'Result Code: ', '</b>', resultQualCode,"<br/>",
-                                   '<b>', 'Result: ', '</b>', result, unit),
-                    clusterOptions = markerClusterOptions()
-                    )
+      
+        withProgress(message = paste0('Getting Data (', input$parameter, ' - ', input$county, ', ', input$min_year, '-',input$max_year, ')'), value = 1, {
+            API_data_WQresults <- ceden_query(service = 'cedenwaterqualityresultslist', query_parameters = filter_string, userName = 'testInternal', password = 'p', base_URI = base_URI)            
         })
+
+        if (API_data_WQresults!='No Data') {
+            output$map <- renderLeaflet({
+                leaflet(API_data_WQresults) %>%
+                    addTiles() %>%
+                    addCircleMarkers(
+                        radius = 3, opacity = 0.5,
+                        popup = ~paste('<b>', 'Analyte: ', '</b>', analyte,"<br/>",
+                                       '<b>', 'Station: ', '</b>', stationName,"<br/>",
+                                       '<b>', 'Sampling Agency: ', '</b>', sampleAgency,"<br/>",
+                                       '<b>', 'Lab: ', '</b>', labAgency,"<br/>",
+                                       '<b>', 'Sample Date: ', '</b>', substr(sampleDate,1,10),"<br/>",
+                                       '<b>', 'Result Code: ', '</b>', resultQualCode,"<br/>",
+                                       '<b>', 'Result: ', '</b>', result, unit),
+                        clusterOptions = markerClusterOptions()
+                        )
+            })
+        } else {
+            output$map <- renderLeaflet({ 
+                leaflet() %>% addTiles() %>% setView(lat = 38.3, lng = -119.0, zoom = 5) 
+            })
+                showNotification("No data returned", type = 'error')    
+            }
     })
 }
 
