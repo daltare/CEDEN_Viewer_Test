@@ -3,3 +3,4 @@
 .Rdata
 *.Rproj
 rsconnect
+/data

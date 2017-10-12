@@ -1,5 +1,6 @@
 # Query Function
 ceden_query <- function(service, query_parameters, base_URI = 'https://testcedenwebservices.waterboards.ca.gov:9267', userName = '', password = '') {
+    
     # Check to see if the user has entered a username and password with the function. If not, get it from the user's environment variables.
         if (userName == '') {
             userName <- Sys.getenv('ceden_userName')
@@ -18,7 +19,7 @@ ceden_query <- function(service, query_parameters, base_URI = 'https://testceden
     # Query (send a GET request with the relevant parameters)
         query_formatted <- url_encode(paste0('{', query_parameters, '}')) # encode the query parameters into a format suitable for HTTP
         query_URI <- paste0(base_URI,'/', service, '/?queryParams=', query_formatted) # build the string for the request
-        query_Response <- GET(query_URI, timeout(60)) # send the request
+        query_Response <- GET(query_URI) # send the request
         if(query_Response$status_code != 200) { # Make sure the query was successful. If not, stop the function, and return the HTTP error code to the user.
             stop(paste0('query not successful. HTTP error code: ', query_Response$status_code))
         }

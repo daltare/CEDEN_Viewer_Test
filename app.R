@@ -13,6 +13,9 @@
 
 # Load the query function
     source('functions.R')
+    
+# Load a list of CA counties
+    counties_list <- read.csv('data/CA_Counties_List.csv')
 
 # Define UI for application
 ui <- fluidPage(
@@ -26,9 +29,9 @@ ui <- fluidPage(
          textInput('parameter',
                    'Analyte (NOTE: use /% as a wildcard):',
                    value = 'E. coli'),
-         textInput('county',
-                   'County:',
-                   value = 'Sacramento'),
+         selectInput(inputId = 'county',
+                     label = 'County:', 
+                     choices = counties_list$County.Name),
          numericInput('min_year',
                       'Start Year:',
                       value = 2014),
