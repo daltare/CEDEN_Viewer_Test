@@ -21,13 +21,16 @@
 ui <- fluidPage(
    
    # Application title
-   titlePanel("Test CEDEN Data Viewer (w/ CEDEN Web Services Interface)"),
+   titlePanel("Test CEDEN Data Viewer (with CEDEN Web Services)"),
    
    # Sidebar with an input box 
    sidebarLayout(
       sidebarPanel(
+          h3('Filters'),
+         # p(strong('NOTE: Use '), em(strong('/%')), strong('as a wildcard for any field')),
+         p(h6('NOTE: for a wildcard in any field use: /%')),
          textInput('parameter',
-                   'Analyte (NOTE: use /% as a wildcard):',
+                   'Analyte:',
                    value = 'E. coli'),
          selectInput(inputId = 'county',
                      label = 'County:', 
