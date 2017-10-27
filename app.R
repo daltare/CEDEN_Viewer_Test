@@ -13,8 +13,8 @@
     library(lubridate)
 
 # Load the CEDEN query function
-    # source('functions.R')
-    library(cedenTools)
+    library(cedenTools) # this package can be installed with the following command: devtools::install_github('daltare/cedenTools')
+ 
     
 # Load a list of CA counties
     counties_list <- read.csv('data/CA_Counties_List.csv')
@@ -30,24 +30,16 @@ ui <- fluidPage(
    sidebarLayout(
       sidebarPanel(
           h3('Filters'),
-         # p(strong('NOTE: Use '), em(strong('/%')), strong('as a wildcard for any field')),
          p(h6('NOTE: for a wildcard in any field use: /%')),
          textInput('parameter',
                    'Analyte:',
                    value = 'E. coli'),
-         # textInput(inputId = 'county',label = 'County:',value = 'Sacramento'),
          selectInput(inputId = 'county',
                      label = 'County:',
                      choices = counties_list$County.Name,
                      multiple = TRUE,
                      selected = 'Sacramento'),
-         dateRangeInput(inputId = 'date_range',label = 'Date Range:', start = '2014-01-01',end = '2014-03-31'),
-         # numericInput('min_year',
-         #              'Start Year:',
-         #              value = 2014),
-         # numericInput('max_year',
-         #              'End Year:',
-         #              value = 2014),
+         dateRangeInput(inputId = 'date_range',label = 'Date Range:', start = '2014-01-01',end = '2014-12-31'),
          actionButton('refresh','Update')
       ),
       
@@ -88,7 +80,7 @@ server <- function(input, output) {
             }
             filter_string <- paste0('"filter":[{"county":"', county_input[1],'","parameter":"', input$parameter,'","sampleDateMin":', format(input$date_range[1], '%m/%d/%Y'), '","sampleDateMax":"', format(input$date_range[2], '%m/%d/%Y'), '"}]')
             withProgress(message = paste0('Getting Data (', input$parameter, ', ', county_input[2], ', ', input$date_range[1], ' - ',input$date_range[2], ')'), value = 1, {
-                API_data_WQresults <- ceden_query(service = 'cedenwaterqualityresultslist', query_parameters = filter_string, userName = 'testInternal', password = 'p', base_URI = base_URI)
+                API_data_WQresults <- ceden_query_csv(service = 'cedenwaterqualityresultslist', query_parameters = filter_string, userName = 'testInternal', password = 'p', base_URI = base_URI)
             })
             if (i == 1 | county_input == '/%') {
                 API_data_WQresults_FINAL <- API_data_WQresults
@@ -107,13 +99,13 @@ server <- function(input, output) {
                     addTiles() %>%
                     addCircleMarkers(
                         radius = 3, opacity = 0.5,
-                        popup = ~paste('<b>', 'Analyte: ', '</b>', analyte,"<br/>",
-                                       '<b>', 'Station: ', '</b>', stationName,"<br/>",
-                                       '<b>', 'Sampling Agency: ', '</b>', sampleAgency,"<br/>",
-                                       '<b>', 'Lab: ', '</b>', labAgency,"<br/>",
-                                       '<b>', 'Sample Date: ', '</b>', substr(sampleDate,1,10),"<br/>",
-                                       '<b>', 'Result Code: ', '</b>', resultQualCode,"<br/>",
-                                       '<b>', 'Result: ', '</b>', result, unit),
+                        popup = ~paste('<b>', 'Analyte: ', '</b>', Analyte,"<br/>",
+                                       '<b>', 'Station: ', '</b>', StationName,"<br/>",
+                                       '<b>', 'Sampling Agency: ', '</b>', SampleAgency,"<br/>",
+                                       '<b>', 'Lab: ', '</b>', LabAgency,"<br/>",
+                                       '<b>', 'Sample Date: ', '</b>', substr(SampleDate,1,10),"<br/>",
+                                       '<b>', 'Result Code: ', '</b>', ResultQualCode,"<br/>",
+                                       '<b>', 'Result: ', '</b>', Result, Unit),
                         clusterOptions = markerClusterOptions()
                         )
             })
