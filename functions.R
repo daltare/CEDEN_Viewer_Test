@@ -13,7 +13,9 @@ ceden_query <- function(service, query_parameters, base_URI = 'https://testceden
         auth_Request <- paste0(base_URI, '/Auth/?provider=credentials&userName=', userName, '&password=', password) # build the string for the request
         auth_Response <- POST(auth_Request) # send the request
         if(auth_Response$status_code != 200) { # Make sure the authentication was successful. If not, stop the function, and report the HTTP errror code to the user.
-            stop(paste0('Authentication not successful. HTTP error code: ', auth_Response$status_code))
+            query_Results <- 'No Data'
+            return(query_Results)
+            # stop(paste0('Authentication not successful. HTTP error code: ', auth_Response$status_code))
         }
     
     # Query (send a GET request with the relevant parameters)
@@ -21,7 +23,9 @@ ceden_query <- function(service, query_parameters, base_URI = 'https://testceden
         query_URI <- paste0(base_URI,'/', service, '/?queryParams=', query_formatted) # build the string for the request
         query_Response <- GET(query_URI) # send the request
         if(query_Response$status_code != 200) { # Make sure the query was successful. If not, stop the function, and return the HTTP error code to the user.
-            stop(paste0('query not successful. HTTP error code: ', query_Response$status_code))
+            query_Results <- 'No Data'
+            return(query_Results)
+            # stop(paste0('query not successful. HTTP error code: ', query_Response$status_code))
         }
     
     # Convert the results of the request from JSON into a readable format, and format it to an R dataframe
