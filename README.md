@@ -1,3 +1,1 @@
-This shiny application is meant to give an example of how to use the CEDEN web services to build custom tools.
-
-The application is online at: https://daltare.shinyapps.io/ceden_web_services_test/
+This shiny application (available [here](https://daltare.shinyapps.io/ceden_web_services_test/)) is an example of how to use web services associated with the [California Data Exchange Network (CEDEN)](http://www.ceden.org/) database to build custom tools that access data in real-time. It uses the [cedenTools](https://github.com/daltare/cedenTools) R package to interface with CEDEN's web services to access the data.

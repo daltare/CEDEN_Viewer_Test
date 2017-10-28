@@ -17,14 +17,14 @@
 
 # Define the user interface for the application ----
 ui <- fluidPage(
-   
+    tags$head(tags$style(".rightAlign{float:right;}")),
    # Application title
    titlePanel("Test CEDEN Data Viewer (with CEDEN Web Services)"),
    
    # Sidebar with an input boxes
    sidebarLayout(
       sidebarPanel(
-          h3('Filters'),
+         h3('Filters:'),
          p(h6('NOTE: for a wildcard in any field use: /%')),
          textInput('parameter',
                    'Analyte:',
@@ -35,8 +35,17 @@ ui <- fluidPage(
                      multiple = TRUE,
                      selected = 'Sacramento'),
          dateRangeInput(inputId = 'date_range',label = 'Date Range:', start = '2014-01-01',end = '2014-12-31'),
-         actionButton('refresh','Update')
+         actionButton('refresh','Update'),
+         br(), br(), hr(style="border: 1px solid darkgrey"),#, br(),
+         h3('Information:'),
+         p('Data Source: ', a(href = 'http://www.ceden.org/', 'California Environmental Data Exchange Network (CEDEN)')), 
+         actionButton(inputId = 'github', label = 'Code on GitHub', icon = icon('github', class = 'fa-1.5x'),
+                      onclick ="window.open('https://github.com/daltare/CEDEN_Viewer_Test', '_blank')")
       ),
+      
+      # sidebarPanel(
+      #     icon(name = 'github', class = 'fa-2x', lib = "font-awesome")
+      # ),
       
       # Show the map
       mainPanel(
