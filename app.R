@@ -16,7 +16,6 @@
 
 # Define the user interface for the application ----
 ui <- fluidPage(
-    tags$head(tags$style(".rightAlign{float:right;}")),
    # Application title
    titlePanel("Test CEDEN Data Viewer (with CEDEN Web Services)"),
    
@@ -80,19 +79,36 @@ server <- function(input, output) {
                 withProgress(message = paste0('Getting Data (', input$parameter, ', ', county_input[2], ', ', input$date_range[1], ' - ',input$date_range[2], ')'), value = 1, {
                     API_data_WQresults <- ceden_query_csv(service = 'cedenwaterqualityresultslist', query_parameters = filter_string, userName = 'testInternal', password = 'p', base_URI = base_URI, errorMessages_out = TRUE)
                 })
-                if (i == 1 | county_input[1] == '/%') {
-                    API_data_WQresults_FINAL <- API_data_WQresults
-                } else {
-                    if (is.na(API_data_WQresults_FINAL) & !is.na(API_data_WQresults)) {
-                        API_data_WQresults_FINAL <- API_data_WQresults
-                    } 
-                    if (!is.na(API_data_WQresults_FINAL) & !is.na(API_data_WQresults)) {
-                        API_data_WQresults_FINAL <- bind_rows(API_data_WQresults_FINAL, API_data_WQresults)
+                # check whether the query returned any results (query_status); FALSE means there's no data, TRUE means there is data
+                    if (names(API_data_WQresults)[1] == 'Result' & names(API_data_WQresults)[2] == 'HTTP.Code' & names(API_data_WQresults)[3] == 'API.Message') {
+                        query_status <- FALSE
+                    } else {
+                        query_status <- TRUE
                     }
-                }
-                if (i==length(input$county)) {
-                    break()
-                }
+                # if it's the first county in the loop, or if 'All counties' selected, enter that as the final result
+                    if (i == 1 | county_input[1] == '/%') {
+                        API_data_WQresults_FINAL <- API_data_WQresults
+                    } else {
+                # otherwise, append the current query results to the final set of outputs
+                        # get the status of API_data_WQresults_FINAL; FALSE means there's no data, TRUE means there is data
+                            if (names(API_data_WQresults_FINAL)[1] == 'Result' & names(API_data_WQresults_FINAL)[2] == 'HTTP.Code' & names(API_data_WQresults_FINAL)[3] == 'API.Message') {
+                                query_status_Final <- FALSE
+                            } else {
+                                query_status_Final <- TRUE
+                            }
+                        # append the current results to the final list or overwrite it, if needed
+                        if (query_status_Final == FALSE & query_status == TRUE) {
+                            API_data_WQresults_FINAL <- API_data_WQresults
+                        } 
+                        if (query_status_Final == TRUE & query_status == TRUE) {
+                            API_data_WQresults_FINAL <- bind_rows(API_data_WQresults_FINAL, API_data_WQresults)
+                        }
+                        # if query_status == FALSE, don't do anything (leave API_data_WQresults_FINAL as they are)
+                    }
+                # don't do any more queries if it's the last i, including when 'All Counties' is queried
+                    if (i==length(input$county)) {
+                        break()
+                    }
             }
         
         # If no valid data, draw an empty map, and show an error message
