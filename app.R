@@ -8,8 +8,7 @@
     library(tidyverse)
     library(leaflet)
     library(shinycssloaders)
-    # Load the CEDEN query function via the cedenTools package
-        library(cedenTools) # this package can be installed with the following command: devtools::install_github('daltare/cedenTools')
+    library(cedenTools) # this package loads the CEDEN query function; it can be installed with the following command: devtools::install_github('daltare/cedenTools')
     
 # Load a list of CA counties
     counties_list <- read.csv('data/CA_Counties_List.csv')
@@ -42,11 +41,7 @@ ui <- fluidPage(
          actionButton(inputId = 'github', label = 'Code on GitHub', icon = icon('github', class = 'fa-1.5x'),
                       onclick ="window.open('https://github.com/daltare/CEDEN_Viewer_Test', '_blank')")
       ),
-      
-      # sidebarPanel(
-      #     icon(name = 'github', class = 'fa-2x', lib = "font-awesome")
-      # ),
-      
+
       # Show the map
       mainPanel(
          withSpinner(leafletOutput('map', height = 700))
@@ -78,26 +73,36 @@ server <- function(input, output) {
                 if ('All Counties' %in% input$county) {
                     county_input <- c('/%', 'All Counties') # the first element is for the filter string, and the second is for the progress message
                     i <- length(input$county) # set i to be the total number of counties, so only 1 query is performed and there isn't any duplicate data requested
-                    
                 } else {
                     county_input <- c(input$county[i], input$county[i]) # the first element is for the filter string, and the second is for the progress message
                 }
                 filter_string <- paste0('"filter":[{"county":"', county_input[1],'","parameter":"', input$parameter,'","sampleDateMin":', format(input$date_range[1], '%m/%d/%Y'), '","sampleDateMax":"', format(input$date_range[2], '%m/%d/%Y'), '"}]')
                 withProgress(message = paste0('Getting Data (', input$parameter, ', ', county_input[2], ', ', input$date_range[1], ' - ',input$date_range[2], ')'), value = 1, {
-                    API_data_WQresults <- ceden_query_csv(service = 'cedenwaterqualityresultslist', query_parameters = filter_string, userName = 'testInternal', password = 'p', base_URI = base_URI)
+                    API_data_WQresults <- ceden_query_csv(service = 'cedenwaterqualityresultslist', query_parameters = filter_string, userName = 'testInternal', password = 'p', base_URI = base_URI, errorMessages_out = TRUE)
                 })
-                if (i == 1 | county_input == '/%') {
+                if (i == 1 | county_input[1] == '/%') {
                     API_data_WQresults_FINAL <- API_data_WQresults
                 } else {
-                    API_data_WQresults_FINAL <- bind_rows(API_data_WQresults_FINAL, API_data_WQresults)    
+                    if (is.na(API_data_WQresults_FINAL) & !is.na(API_data_WQresults)) {
+                        API_data_WQresults_FINAL <- API_data_WQresults
+                    } 
+                    if (!is.na(API_data_WQresults_FINAL) & !is.na(API_data_WQresults)) {
+                        API_data_WQresults_FINAL <- bind_rows(API_data_WQresults_FINAL, API_data_WQresults)
+                    }
                 }
                 if (i==length(input$county)) {
                     break()
                 }
             }
         
+        # If no valid data, draw an empty map, and show an error message
+            if (names(API_data_WQresults_FINAL)[1] == 'Result' & names(API_data_WQresults_FINAL)[2] == 'HTTP.Code' & names(API_data_WQresults_FINAL)[3] == 'API.Message') {
+                output$map <- renderLeaflet({ 
+                    leaflet() %>% addTiles() %>% setView(lat = 38.3, lng = -119.0, zoom = 5) 
+                })
+                showNotification(paste0("Error: ", API_data_WQresults_FINAL$Result[1], ' (', API_data_WQresults_FINAL$API.Message[1], ')'), type = 'error')    
+            } else { 
         # If valid data is returned, draw the map
-            if (names(API_data_WQresults_FINAL)[2] != 'HTTP.Code') {
                 output$map <- renderLeaflet({
                     leaflet(API_data_WQresults_FINAL) %>%
                         addTiles() %>%
@@ -111,14 +116,8 @@ server <- function(input, output) {
                                            '<b>', 'Result Code: ', '</b>', ResultQualCode,"<br/>",
                                            '<b>', 'Result: ', '</b>', Result, Unit),
                             clusterOptions = markerClusterOptions()
-                            )
+                        )
                 })
-            } else { 
-        # If no valid data, draw an empty map, and show an error message
-            output$map <- renderLeaflet({ 
-                leaflet() %>% addTiles() %>% setView(lat = 38.3, lng = -119.0, zoom = 5) 
-            })
-                showNotification(paste0("Error: ", API_data_WQresults_FINAL$Result[1], ' (', API_data_WQresults_FINAL$API.Message[1], ')'), type = 'error')    
             }
     })
 }
