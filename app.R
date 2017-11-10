@@ -9,6 +9,8 @@
     library(leaflet)
     library(shinycssloaders)
     library(cedenTools) # this package loads the CEDEN query function; it can be installed with the following command: devtools::install_github('daltare/cedenTools')
+    library(DT)
+    library(lubridate)
     
 # Load a list of CA counties
     counties_list <- read.csv('data/CA_Counties_List.csv')
@@ -17,33 +19,43 @@
 # Define the user interface for the application ----
 ui <- fluidPage(
    # Application title
-   titlePanel("Test CEDEN Data Viewer (with CEDEN Web Services)"),
+   titlePanel("CEDEN Water Quality Data Mapper"),
    
    # Sidebar with an input boxes
    sidebarLayout(
       sidebarPanel(
          h3('Filters:'),
-         p(h6('NOTE: for a wildcard in any field use: /%')),
          textInput('parameter',
                    'Analyte:',
                    value = 'E. coli'),
+         p(h6('NOTE: The following string is treated as a wildcard: /%')),
          selectInput(inputId = 'county',
                      label = 'County:',
                      choices = counties_list$County.Name,
                      multiple = TRUE,
                      selected = 'Sacramento'),
          dateRangeInput(inputId = 'date_range',label = 'Date Range:', start = '2014-01-01',end = '2014-12-31'),
-         actionButton('refresh','Update'),
-         br(), br(), hr(style="border: 1px solid darkgrey"),#, br(),
-         h3('Information:'),
-         p('Data Source: ', a(href = 'http://www.ceden.org/', 'California Environmental Data Exchange Network (CEDEN)')), 
-         actionButton(inputId = 'github', label = 'Code on GitHub', icon = icon('github', class = 'fa-1.5x'),
+         checkboxInput(inputId = 'excludeQA', label = 'Exclude QA samples', value = TRUE),
+         actionButton('refresh','Update Map'),
+         # Line breaks and a horizontal line
+            br(),
+            hr(style="border: 2px solid darkgrey"),
+         # Information about the application
+            h3('Application Information:'),
+            p('Data Source: ', a(href = 'http://www.ceden.org/', 'California Environmental Data Exchange Network (CEDEN)')), 
+            p('Data Feed:', a(href = 'https://github.com/daltare/cedenTools', 'CEDEN Web Services')),
+            # hr(style="border: 1px solid darkgrey"),
+            p('For more information, contact: ', a(href = 'mailto:david.altare@waterboards.ca.gov', 'david.altare@waterboards.ca.gov')),
+            actionButton(inputId = 'github', label = 'Code on GitHub', icon = icon('github', class = 'fa-1x'),
                       onclick ="window.open('https://github.com/daltare/CEDEN_Viewer_Test', '_blank')")
       ),
 
       # Show the map
       mainPanel(
-         withSpinner(leafletOutput('map', height = 700))
+         withSpinner(leafletOutput('map', height = 700)),
+         # br(),
+         hr(style="border: 1px solid darkgrey"),
+         dataTableOutput('tabular.data')
       )
    )
 )
@@ -66,6 +78,11 @@ server <- function(input, output) {
             base_URI = 'https://testcedenwebservices.waterboards.ca.gov'
         }
     
+    # Draw a blank map initially
+        output$map <- renderLeaflet({ 
+            leaflet() %>% addTiles() %>% setView(lat = 38.3, lng = -119.0, zoom = 5) 
+        })
+        
     observeEvent(input$refresh, {
         # Cycle through all of the counties selected, and get the data that meets the query parameters
             for (i in 1:length(input$county)) {
@@ -75,10 +92,14 @@ server <- function(input, output) {
                 } else {
                     county_input <- c(input$county[i], input$county[i]) # the first element is for the filter string, and the second is for the progress message
                 }
-                filter_string <- paste0('"filter":[{"county":"', county_input[1],'","parameter":"', input$parameter,'","sampleDateMin":', format(input$date_range[1], '%m/%d/%Y'), '","sampleDateMax":"', format(input$date_range[2], '%m/%d/%Y'), '"}]')
-                withProgress(message = paste0('Getting Data (', input$parameter, ', ', county_input[2], ', ', input$date_range[1], ' - ',input$date_range[2], ')'), value = 1, {
-                    API_data_WQresults <- ceden_query_csv(service = 'cedenwaterqualityresultslist', query_parameters = filter_string, userName = 'testInternal', password = 'p', base_URI = base_URI, errorMessages_out = TRUE)
-                })
+                # If excluding QA samples, create that part of the query string
+                    if (input$excludeQA) {QAstring <- ',"MatrixNot":"blankwater","ProgramNot":"Associated QA","StationCodeNot":"000NONPJ"'} else {QAstring <- ''}
+                # Create the filter string
+                    filter_string <- paste0('"filter":[{"county":"', county_input[1],'","parameter":"', input$parameter,'","sampleDateMin":', format(input$date_range[1], '%m/%d/%Y'), '","sampleDateMax":"', format(input$date_range[2], '%m/%d/%Y'), '"', QAstring, '}]')
+                # Get the data with the ceden_query function (from the cedenTools package), and use a progress indicator to let the user know that it's processing the request
+                    withProgress(message = paste0('Getting Data (', input$parameter, ', ', county_input[2], ', ', input$date_range[1], ' - ',input$date_range[2], ')'), value = 1, {
+                        API_data_WQresults <- ceden_query_csv(service = 'cedenwaterqualityresultslist', query_parameters = filter_string, userName = 'testInternal', password = 'p', base_URI = base_URI, errorMessages_out = TRUE)
+                    })
                 # check whether the query returned any results (query_status); FALSE means there's no data, TRUE means there is data
                     if (names(API_data_WQresults)[1] == 'Result' & names(API_data_WQresults)[2] == 'HTTP.Code' & names(API_data_WQresults)[3] == 'API.Message') {
                         query_status <- FALSE
@@ -119,21 +140,46 @@ server <- function(input, output) {
                 showNotification(paste0("Error: ", API_data_WQresults_FINAL$Result[1], ' (', API_data_WQresults_FINAL$API.Message[1], ')'), type = 'error')    
             } else { 
         # If valid data is returned, draw the map
+                # Convert dates from string to date format
+                    API_data_WQresults_FINAL$SampleDate <- as.Date(API_data_WQresults_FINAL$SampleDate, format = '%m/%d/%Y')
                 output$map <- renderLeaflet({
                     leaflet(API_data_WQresults_FINAL) %>%
                         addTiles() %>%
                         addCircleMarkers(
                             radius = 3, opacity = 0.5,
-                            popup = ~paste('<b>', 'Analyte: ', '</b>', Analyte,"<br/>",
-                                           '<b>', 'Station: ', '</b>', StationName,"<br/>",
-                                           '<b>', 'Sampling Agency: ', '</b>', SampleAgency,"<br/>",
-                                           '<b>', 'Lab: ', '</b>', LabAgency,"<br/>",
-                                           '<b>', 'Sample Date: ', '</b>', substr(SampleDate,1,10),"<br/>",
-                                           '<b>', 'Result Code: ', '</b>', ResultQualCode,"<br/>",
-                                           '<b>', 'Result: ', '</b>', Result, Unit),
+                            popup = ~paste('<b>', 'Analyte: ', '</b>', Analyte,'<br/>',
+                                           '<b>', 'Sample ID: ', '</b>', Id, '<br/>',
+                                           '<b>', 'Matrix: ', '</b>', Matrix,'<br/>',
+                                           '<b>', 'Station: ', '</b>', StationName,'<br/>',
+                                           '<b>', 'Station Code: ', '</b>', StationCode,'<br/>',
+                                           '<b>', 'Sampling Agency: ', '</b>', SampleAgency,'<br/>',
+                                           '<b>', 'Program: ', '</b>', Program,'<br/>',
+                                           '<b>', 'Lab: ', '</b>', LabAgency,'<br/>',
+                                           '<b>', 'Sample Date: ', '</b>', SampleDate,'<br/>',
+                                           '<b>', 'Result Code: ', '</b>', ResultQualCode,'<br/>',
+                                           '<b>', 'Result: ', '</b>', Result, Unit,'<br/>'),
                             clusterOptions = markerClusterOptions()
                         )
                 })
+                
+        # Create the tabular data table
+                output$tabular.data = renderDataTable(
+                    API_data_WQresults_FINAL, extensions = c('Buttons', 'Scroller'),
+                    options = list(dom = 'Bfrtip', buttons =
+                                       list('colvis', list(
+                                           extend = 'collection',
+                                           buttons = list(list(extend='csv',
+                                                               filename = 'cedenData'),
+                                                          list(extend='excel',
+                                                               filename= 'cedenData')),
+                                           text = 'Download Data'
+                                       )),
+                                   scrollX = TRUE,
+                                   scrollY = 500, scroller = TRUE, deferRender = TRUE),
+                    class = 'cell-border stripe', rownames = FALSE#,
+                    # server = FALSE
+                    # server=TRUE
+                )
             }
     })
 }
